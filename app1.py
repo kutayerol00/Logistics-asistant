@@ -161,9 +161,9 @@ with st.sidebar:
     st.markdown("""
     1. **Dosyaları Sürükleyin:** Ortadaki alana Excel dosyalarını atın.
     2. **Başlat:** Sistem taramaya başlar.
-    3. **Sonuçlar:** - **Yeşil Liste:** Sisteme yüklenecek temiz veri.
+    3. **Sonuçlar:** - **Birleştirilmiş excell listesi:** 
+       - **Tmaxx Listesi:** Tmaxxe yüklenmeye hazır liste.
        - **Hata Listesi:** Konteyneri veya MBL'i bulunamayanlar.
-    
     ℹ️ **Not:** Eğer bir MBL'in konteyneri herhangi bir dosyada bulunduysa, diğer dosyalardaki hatalı hali **otomatik silinir**.
     """)
     st.markdown("---")
@@ -365,7 +365,7 @@ if st.session_state['processed_data'] is not None:
         
         with col_d1:
             st.download_button(
-                label="📥 1. Temiz Liste (Excel)",
+                label="📥 1. Temiz Birleştirilmiş Liste (Excel)",
                 data=st.session_state['excel_bytes'],
                 file_name="BIRLESTIRILMIS_LISTE.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -374,7 +374,7 @@ if st.session_state['processed_data'] is not None:
         
         with col_d2:
             st.download_button(
-                label="📤 2. Yükleme Dosyası (CSV)",
+                label="📤 2. TMAXX Uyumlu Yükleme Dosyası (CSV)",
                 data=st.session_state['csv_bytes'],
                 file_name="TMAXX_YUKLEME.csv",
                 mime="text/csv",
@@ -402,4 +402,5 @@ if st.session_state['processed_data'] is not None:
     if st.button("🔄 Sıfırla"):
         for key in st.session_state.keys():
             del st.session_state[key]
+
         st.rerun()
