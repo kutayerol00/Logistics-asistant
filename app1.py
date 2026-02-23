@@ -161,7 +161,8 @@ with st.sidebar:
     st.markdown("""
     1. **Dosyaları Sürükleyin:** Ortadaki alana Excel dosyalarını atın.
     2. **Başlat:** Sistem taramaya başlar.
-    3. **Sonuçlar:** - **Birleştirilmiş excell listesi:** 
+    3. **Sonuçlar:** - 
+       - **Tam Liste:** Birleştirilmiş tüm liste.
        - **Tmaxx Listesi:** Tmaxxe yüklenmeye hazır liste.
        - **Hata Listesi:** Konteyneri veya MBL'i bulunamayanlar.
     ℹ️ **Not:** Eğer bir MBL'in konteyneri herhangi bir dosyada bulunduysa, diğer dosyalardaki hatalı hali **otomatik silinir**.
@@ -404,3 +405,4 @@ if st.session_state['processed_data'] is not None:
             del st.session_state[key]
 
         st.rerun()
+
