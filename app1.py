@@ -35,20 +35,28 @@ st.markdown("""
         box-shadow: 0 2px 4px rgba(0,0,0,0.05);
     }
     
-    /* YENİ: Sürükle-Bırak (File Uploader) Alanını Büyütme */
-    [data-testid="stFileUploadDropzone"] {
-        min-height: 500px; /* Buradaki px değerini artırarak daha da büyütebilirsiniz */
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        border: 2px dashed #a8b2c1; /* Çizgileri biraz daha belirgin yaptık */
-        background-color: #f8f9fa; /* Hafif bir arka plan rengi eklendi */
+    [data-testid="stFileUploader"] section, 
+    [data-testid="stFileUploadDropzone"],
+    [data-testid="stFileUploaderDropzone"] {
+        min-height: 400px !important; /* Yüksekliği buradan ayarlayabilirsiniz */
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: center !important;
+        align-items: center !important;
+        border: 2px dashed #a8b2c1 !important;
+        background-color: #f8f9fa !important;
     }
     
-    /* İçerideki ikon ve metnin de merkeze oturması için */
-    [data-testid="stFileUploadDropzone"] > div {
-        text-align: center;
-        padding: 2rem;
+    /* İçerideki ikon ve metnin dikeyde merkeze oturması için */
+    [data-testid="stFileUploader"] section > div,
+    [data-testid="stFileUploadDropzone"] > div,
+    [data-testid="stFileUploaderDropzone"] > div {
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: center !important;
+        align-items: center !important;
+        height: 100% !important;
+        padding: 2rem !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -424,6 +432,7 @@ if st.session_state['processed_data'] is not None:
             del st.session_state[key]
 
         st.rerun()
+
 
 
 
