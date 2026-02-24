@@ -16,49 +16,78 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-    /* Genel Buton ve Kart Stilleri */
+    /* Genel Buton Stilleri */
     .stButton>button {
         width: 100%;
-        border-radius: 10px;
-        height: 3.5em;
+        border-radius: 8px;
+        height: 3.2em;
         font-weight: bold;
+        transition: all 0.3s ease;
     }
     
-    /* DRAG & DROP ALANINI ZORLA BOYAMA VE BÜYÜTME */
+    /* DRAG & DROP ALANINI ESTETİK VE MODERN HALE GETİRME */
+    
     /* 1. Ana çerçeve ve arka plan */
     [data-testid="stFileUploader"] section {
-        min-height: 500px !important;
-        background-color: #dee2e6 !important; /* Daha koyu ve belirgin gri */
-        border: 3px dashed #007bff !important;
-        border-radius: 20px !important;
+        padding: 3rem 2rem !important;
+        background-color: rgba(255, 255, 255, 0.03) !important; /* Temaya uygun hafif saydam */
+        border: 2px dashed rgba(255, 255, 255, 0.2) !important;
+        border-radius: 16px !important;
+        min-height: 250px !important; /* 500px çok büyüktü, 250px daha zarif */
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        transition: all 0.3s ease-in-out !important;
     }
 
-    /* 2. İç kısımdaki boşluğu ve beyazlığı yok etme */
+    /* 2. İç kısımdaki boşluğu sıfırla */
     [data-testid="stFileUploader"] section > div {
         background-color: transparent !important; 
     }
 
-    /* 3. Streamlit'in içindeki küçük yazı ve ikon alanlarını boyama */
-    div[data-testid="stFileUploaderDropzone"] {
-        background-color: #dee2e6 !important; /* Kutuyla aynı renk */
-        min-height: 500px !important;
-    }
-
-    /* 4. Mouse ile üzerine gelindiğinde */
+    /* 3. Mouse ile üzerine gelindiğinde (Hover efekti) */
     [data-testid="stFileUploader"] section:hover {
-        background-color: #ced4da !important; /* Hover durumunda bir tık daha koyu */
-        border-color: #0056b3 !important;
+        background-color: rgba(255, 255, 255, 0.06) !important;
+        border-color: #4da6ff !important; /* Mavi vurgu */
+        box-shadow: 0px 0px 15px rgba(77, 166, 255, 0.15) !important;
     }
 
-    /* Yazıların okunabilirliği için renk ayarı */
+    /* 4. Drag and drop yazıları (Okunabilirlik için) */
     [data-testid="stFileUploader"] section div div {
-        color: #212529 !important;
+        color: #b0bec5 !important; /* Açık gri okunaklı metin */
+        font-size: 1.05rem !important;
+    }
+    
+    /* 5. SVG İkonunu renklendirme (Bulut ikonu) */
+    [data-testid="stFileUploader"] section svg {
+        fill: #4da6ff !important;
+        width: 60px !important;
+        height: 60px !important;
+        margin-bottom: 10px !important;
     }
 
-    /* Küçük Bilgilendirme Metni */
-    [data-testid="stFileUploader"] label {
-        font-size: 1.2rem !important;
-        font-weight: bold !important;
+    /* 6. "Browse files" butonu özelleştirmesi */
+    [data-testid="stFileUploader"] section button {
+        background-color: #4da6ff !important;
+        color: #121212 !important;
+        font-weight: 600 !important;
+        border-radius: 8px !important;
+        border: none !important;
+        padding: 0.5rem 1.5rem !important;
+        margin-top: 15px !important;
+        transition: all 0.2s ease !important;
+    }
+    
+    [data-testid="stFileUploader"] section button:hover {
+        background-color: #2b8ce6 !important;
+        color: white !important;
+    }
+
+    /* Üstteki Bilgilendirme Metni (Etiket) */
+    .stFileUploader label {
+        font-size: 1.1rem !important;
+        font-weight: 600 !important;
+        margin-bottom: 0.8rem !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -184,7 +213,6 @@ def clean_mbl_column(val):
 # ==========================================
 
 with st.sidebar:
-    # HATA DÜZELTİLDİ: width="100" -> width=100 (Integer yapıldı)
     st.image("https://cdn-icons-png.flaticon.com/512/2821/2821854.png", width=100) 
     st.title("Kullanım Kılavuzu")
     st.markdown("""
@@ -378,13 +406,11 @@ if st.session_state['processed_data'] is not None:
                 plot_df = final_df.copy()
                 plot_df['V/V'] = plot_df['V/V'].replace('', 'Belirsiz')
                 fig_vessel = px.pie(plot_df, names='V/V', title='Gemi Dağılımı', hole=0.4)
-                # UYARI DÜZELTİLDİ: use_container_width=True
                 st.plotly_chart(fig_vessel, key="chart1", use_container_width=True) 
             with col_graph2:
                 st.subheader("Konteyner Tipleri")
                 plot_df['VOL'] = plot_df['VOL'].replace('', 'Belirsiz')
                 fig_vol = px.bar(plot_df['VOL'].value_counts().reset_index(), x='VOL', y='count', title='Tip Dağılımı', labels={'count':'Adet', 'VOL':'Tip'})
-                # UYARI DÜZELTİLDİ: use_container_width=True
                 st.plotly_chart(fig_vol, key="chart2", use_container_width=True)
         else:
             st.info("Veri yok.")
@@ -399,7 +425,6 @@ if st.session_state['processed_data'] is not None:
                 data=st.session_state['excel_bytes'],
                 file_name="BIRLESTIRILMIS_LISTE.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                # use_container_width=True butonlar için her sürümde çalışmayabilir, CSS ile zaten %100 yapıldı.
             )
         
         with col_d2:
@@ -422,11 +447,10 @@ if st.session_state['processed_data'] is not None:
                 st.success("Hata yok! Harika! 🎉")
 
     with tab3:
-        # UYARI DÜZELTİLDİ: width="stretch" (Log dosyası bunu istediği için)
         try:
             st.dataframe(final_df, use_container_width=True)
         except:
-            st.dataframe(final_df) # Eski versiyonlar için fallback
+            st.dataframe(final_df) 
     
     st.markdown("---")
     if st.button("🔄 Sıfırla"):
@@ -434,9 +458,3 @@ if st.session_state['processed_data'] is not None:
             del st.session_state[key]
 
         st.rerun()
-
-
-
-
-
-
