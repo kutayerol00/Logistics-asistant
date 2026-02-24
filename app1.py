@@ -14,8 +14,16 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+st.set_page_config(
+    page_title="Lojistik Operasyon Asistanı", 
+    page_icon="🚢", 
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
 st.markdown("""
 <style>
+    /* Mevcut Buton ve Kart Stilleri */
     .stButton>button {
         width: 100%;
         border-radius: 10px;
@@ -30,6 +38,22 @@ st.markdown("""
         border-radius: 10px;
         text-align: center;
         box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+    
+    /* YENİ: Sürükle-Bırak (File Uploader) Alanını Büyütme */
+    [data-testid="stFileUploadDropzone"] {
+        min-height: 250px; /* Buradaki px değerini artırarak daha da büyütebilirsiniz */
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        border: 2px dashed #a8b2c1; /* Çizgileri biraz daha belirgin yaptık */
+        background-color: #f8f9fa; /* Hafif bir arka plan rengi eklendi */
+    }
+    
+    /* İçerideki ikon ve metnin de merkeze oturması için */
+    [data-testid="stFileUploadDropzone"] > div {
+        text-align: center;
+        padding: 2rem;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -175,7 +199,7 @@ with st.sidebar:
 # ==========================================
 
 st.title("🚢 Lojistik Operasyon Asistanı")
-st.markdown("Dağınık Excel dosyalarını birleştirir, **hataları çapraz kontrol ederek temizler** ve yüklemeye hazırlar.")
+st.markdown("Dağınık Excel dosyalarını birleştirir, **hataları kontrol ederek temizler** ve yüklemeye hazırlar.")
 
 if 'processed_data' not in st.session_state:
     st.session_state['processed_data'] = None
@@ -405,4 +429,5 @@ if st.session_state['processed_data'] is not None:
             del st.session_state[key]
 
         st.rerun()
+
 
