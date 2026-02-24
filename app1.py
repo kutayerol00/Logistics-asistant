@@ -14,64 +14,50 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-
-
 st.markdown("""
 <style>
-    /* Mevcut Buton ve Kart Stilleri */
+    /* Genel Buton ve Kart Stilleri */
     .stButton>button {
         width: 100%;
         border-radius: 10px;
         height: 3.5em;
         font-weight: bold;
-        box-shadow: 0px 4px 6px rgba(0,0,0,0.1);
     }
     
-    .metric-card {
-        background-color: #f8f9fa;
-        border: 1px solid #dee2e6;
-        padding: 20px;
-        border-radius: 10px;
-        text-align: center;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-    }
-    
-    /* Drag and Drop Alanı Düzenlemeleri */
-    [data-testid="stFileUploader"] section, 
-    [data-testid="stFileUploadDropzone"],
-    [data-testid="stFileUploaderDropzone"] {
-        min-height: 500px !important; /* Yükseklik 500px yapıldı */
-        display: flex !important;
-        flex-direction: column !important;
-        justify-content: center !important;
-        align-items: center !important;
-        border: 2px dashed #1677ff !important; /* Çizgi rengi belirgin mavi yapıldı */
-        background-color: #f0f2f5 !important; /* Arka plandan bir ton koyu profesyonel gri */
-        border-radius: 15px !important;
-        transition: all 0.3s ease-in-out;
+    /* DRAG & DROP ALANINI ZORLA BOYAMA VE BÜYÜTME */
+    /* 1. Ana çerçeve ve arka plan */
+    [data-testid="stFileUploader"] section {
+        min-height: 500px !important;
+        background-color: #dee2e6 !important; /* Daha koyu ve belirgin gri */
+        border: 3px dashed #007bff !important;
+        border-radius: 20px !important;
     }
 
-    /* Mouse ile üzerine gelince veya dosya sürükleyince renk değişimi */
+    /* 2. İç kısımdaki boşluğu ve beyazlığı yok etme */
+    [data-testid="stFileUploader"] section > div {
+        background-color: transparent !important; 
+    }
+
+    /* 3. Streamlit'in içindeki küçük yazı ve ikon alanlarını boyama */
+    div[data-testid="stFileUploaderDropzone"] {
+        background-color: #dee2e6 !important; /* Kutuyla aynı renk */
+        min-height: 500px !important;
+    }
+
+    /* 4. Mouse ile üzerine gelindiğinde */
     [data-testid="stFileUploader"] section:hover {
-        background-color: #e6f4ff !important; /* Hafif maviye çalan etkileşim rengi */
-        border-color: #003eb3 !important; /* Çizgi rengi koyulaşır */
-    }
-    
-    /* İçerideki ikon ve metnin dikeyde merkeze oturması için */
-    [data-testid="stFileUploader"] section > div,
-    [data-testid="stFileUploadDropzone"] > div,
-    [data-testid="stFileUploaderDropzone"] > div {
-        display: flex !important;
-        flex-direction: column !important;
-        justify-content: center !important;
-        align-items: center !important;
-        height: 100% !important;
-        padding: 2rem !important;
+        background-color: #ced4da !important; /* Hover durumunda bir tık daha koyu */
+        border-color: #0056b3 !important;
     }
 
-    /* "Drag and drop file here" yazısının rengi ve fontu */
-    [data-testid="stFileUploader"] section text {
-        fill: #434343 !important;
+    /* Yazıların okunabilirliği için renk ayarı */
+    [data-testid="stFileUploader"] section div div {
+        color: #212529 !important;
+    }
+
+    /* Küçük Bilgilendirme Metni */
+    [data-testid="stFileUploader"] label {
+        font-size: 1.2rem !important;
         font-weight: bold !important;
     }
 </style>
@@ -448,6 +434,7 @@ if st.session_state['processed_data'] is not None:
             del st.session_state[key]
 
         st.rerun()
+
 
 
 
