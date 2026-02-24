@@ -14,12 +14,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-st.set_page_config(
-    page_title="Lojistik Operasyon Asistanı", 
-    page_icon="🚢", 
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+
 
 st.markdown("""
 <style>
@@ -42,7 +37,7 @@ st.markdown("""
     
     /* YENİ: Sürükle-Bırak (File Uploader) Alanını Büyütme */
     [data-testid="stFileUploadDropzone"] {
-        min-height: 250px; /* Buradaki px değerini artırarak daha da büyütebilirsiniz */
+        min-height: 500px; /* Buradaki px değerini artırarak daha da büyütebilirsiniz */
         display: flex;
         justify-content: center;
         align-items: center;
@@ -429,5 +424,6 @@ if st.session_state['processed_data'] is not None:
             del st.session_state[key]
 
         st.rerun()
+
 
 
