@@ -26,6 +26,7 @@ st.markdown("""
         font-weight: bold;
         box-shadow: 0px 4px 6px rgba(0,0,0,0.1);
     }
+    
     .metric-card {
         background-color: #f8f9fa;
         border: 1px solid #dee2e6;
@@ -35,16 +36,25 @@ st.markdown("""
         box-shadow: 0 2px 4px rgba(0,0,0,0.05);
     }
     
+    /* Drag and Drop Alanı Düzenlemeleri */
     [data-testid="stFileUploader"] section, 
     [data-testid="stFileUploadDropzone"],
     [data-testid="stFileUploaderDropzone"] {
-        min-height: 400px !important; /* Yüksekliği buradan ayarlayabilirsiniz */
+        min-height: 500px !important; /* Yükseklik 500px yapıldı */
         display: flex !important;
         flex-direction: column !important;
         justify-content: center !important;
         align-items: center !important;
-        border: 2px dashed #a8b2c1 !important;
-        background-color: #f8f9fa !important;
+        border: 2px dashed #1677ff !important; /* Çizgi rengi belirgin mavi yapıldı */
+        background-color: #f0f2f5 !important; /* Arka plandan bir ton koyu profesyonel gri */
+        border-radius: 15px !important;
+        transition: all 0.3s ease-in-out;
+    }
+
+    /* Mouse ile üzerine gelince veya dosya sürükleyince renk değişimi */
+    [data-testid="stFileUploader"] section:hover {
+        background-color: #e6f4ff !important; /* Hafif maviye çalan etkileşim rengi */
+        border-color: #003eb3 !important; /* Çizgi rengi koyulaşır */
     }
     
     /* İçerideki ikon ve metnin dikeyde merkeze oturması için */
@@ -57,6 +67,12 @@ st.markdown("""
         align-items: center !important;
         height: 100% !important;
         padding: 2rem !important;
+    }
+
+    /* "Drag and drop file here" yazısının rengi ve fontu */
+    [data-testid="stFileUploader"] section text {
+        fill: #434343 !important;
+        font-weight: bold !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -432,6 +448,7 @@ if st.session_state['processed_data'] is not None:
             del st.session_state[key]
 
         st.rerun()
+
 
 
 
