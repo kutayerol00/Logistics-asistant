@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import re
 import io
-import plotly.express as px 
+import plotly.express as px
 
 # ==========================================
 # 1. AYARLAR VE STİL
@@ -30,10 +30,10 @@ st.markdown("""
     /* 1. Ana çerçeve ve arka plan */
     [data-testid="stFileUploader"] section {
         padding: 3rem 2rem !important;
-        background-color: rgba(255, 255, 255, 0.03) !important; /* Temaya uygun hafif saydam */
+        background-color: rgba(255, 255, 255, 0.03) !important;
         border: 2px dashed rgba(255, 255, 255, 0.2) !important;
         border-radius: 16px !important;
-        min-height: 250px !important; /* 500px çok büyüktü, 250px daha zarif */
+        min-height: 250px !important;
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
@@ -48,13 +48,13 @@ st.markdown("""
     /* 3. Mouse ile üzerine gelindiğinde (Hover efekti) */
     [data-testid="stFileUploader"] section:hover {
         background-color: rgba(255, 255, 255, 0.06) !important;
-        border-color: #4da6ff !important; /* Mavi vurgu */
+        border-color: #4da6ff !important;
         box-shadow: 0px 0px 15px rgba(77, 166, 255, 0.15) !important;
     }
 
     /* 4. Drag and drop yazıları (Okunabilirlik için) */
     [data-testid="stFileUploader"] section div div {
-        color: #b0bec5 !important; /* Açık gri okunaklı metin */
+        color: #b0bec5 !important;
         font-size: 1.05rem !important;
     }
     
@@ -218,14 +218,13 @@ with st.sidebar:
     st.markdown("""
     1. **Dosyaları Sürükleyin:** Ortadaki alana Excel dosyalarını atın.
     2. **Başlat:** Sistem taramaya başlar.
-    3. **Sonuçlar:** - 
-       - **Tam Liste:** Birleştirilmiş tüm liste.
-       - **Tmaxx Listesi:** Tmaxxe yüklenmeye hazır liste.
+    3. **Sonuçlar:** - **Tam Liste:** Birleştirilmiş tüm liste.
+       - **Tmaxx Listesi:** Her gemi/sayfa için ayrı tmaxx yükleme listesi.
        - **Hata Listesi:** Konteyneri veya MBL'i bulunamayanlar.
     ℹ️ **Not:** Eğer bir MBL'in konteyneri herhangi bir dosyada bulunduysa, diğer dosyalardaki hatalı hali **otomatik silinir**.
     """)
     st.markdown("---")
-    st.caption("v2.3 - Stable Fix")
+    st.caption("v2.4 - Multi-Tmaxx Export")
 
 # ==========================================
 # 4. ANA EKRAN
@@ -242,8 +241,8 @@ if 'excel_bytes' not in st.session_state:
     st.session_state['excel_bytes'] = None
 if 'skipped_bytes' not in st.session_state:
     st.session_state['skipped_bytes'] = None 
-if 'csv_bytes' not in st.session_state:
-    st.session_state['csv_bytes'] = None
+if 'tmaxx_files' not in st.session_state: # YENİ: Tek bir csv_bytes yerine dict tutuyoruz
+    st.session_state['tmaxx_files'] = {}
 
 uploaded_files = st.file_uploader("📂 Excel Dosyalarını Buraya Bırakın", type=["xlsx", "xls"], accept_multiple_files=True)
 
@@ -355,17 +354,43 @@ if uploaded_files:
                         skipped_buffer.seek(0)
                         skipped_bytes = skipped_buffer
 
+                    # ==========================================
+                    # YENİ: TMAXX Dosyalarını Her Sayfa İçin Ayrı Üretme
+                    # ==========================================
                     if "VOL" not in final_df.columns: final_df["VOL"] = ""
-                    tmaxx_df = final_df[["CNTR NO", "VOL"]].copy()
-                    tmaxx_df.columns = ['Container No', 'Container Type']
-                    tmaxx_df = tmaxx_df[tmaxx_df['Container No'] != '']
-                    output_csv = tmaxx_df.to_csv(index=False, sep=';', encoding='utf-8-sig').encode('utf-8-sig')
+                    
+                    tmaxx_files_dict = {}
+                    
+                    # KAYNAK_SAYFA sütununa göre gruplama yapıyoruz (Her sheet = Bir gemi)
+                    if 'KAYNAK_SAYFA' in final_df.columns:
+                        for sheet_name in final_df['KAYNAK_SAYFA'].unique():
+                            # Sadece bu sayfaya (gemiye) ait olan verileri filtrele
+                            sheet_df = final_df[final_df['KAYNAK_SAYFA'] == sheet_name]
+                            
+                            tmaxx_df = sheet_df[["CNTR NO", "VOL"]].copy()
+                            tmaxx_df.columns = ['Container No', 'Container Type']
+                            tmaxx_df = tmaxx_df[tmaxx_df['Container No'] != '']
+                            
+                            if not tmaxx_df.empty:
+                                output_csv = tmaxx_df.to_csv(index=False, sep=';', encoding='utf-8-sig').encode('utf-8-sig')
+                                # Dosya adı olarak Sheet ismini veriyoruz (geçersiz karakterleri temizleyerek)
+                                safe_name = str(sheet_name).replace("/", "_").replace("\\", "_")
+                                tmaxx_files_dict[f"{safe_name}.csv"] = output_csv
+                    else:
+                        # Eğer bir şekilde KAYNAK_SAYFA yoksa eski sistem fallback
+                        tmaxx_df = final_df[["CNTR NO", "VOL"]].copy()
+                        tmaxx_df.columns = ['Container No', 'Container Type']
+                        tmaxx_df = tmaxx_df[tmaxx_df['Container No'] != '']
+                        if not tmaxx_df.empty:
+                            output_csv = tmaxx_df.to_csv(index=False, sep=';', encoding='utf-8-sig').encode('utf-8-sig')
+                            tmaxx_files_dict["TMAXX_YUKLEME.csv"] = output_csv
+                    # ==========================================
 
                     st.session_state['processed_data'] = final_df
                     st.session_state['skipped_data'] = final_skipped_df
                     st.session_state['excel_bytes'] = output_excel
                     st.session_state['skipped_bytes'] = skipped_bytes
-                    st.session_state['csv_bytes'] = output_csv
+                    st.session_state['tmaxx_files'] = tmaxx_files_dict # Dict olarak kaydedildi
                     st.session_state['report_stats'] = {
                         'skipped': len(final_skipped_df),
                         'duplicates': dropped_duplicates,
@@ -428,12 +453,19 @@ if st.session_state['processed_data'] is not None:
             )
         
         with col_d2:
-            st.download_button(
-                label="📤 2. TMAXX Uyumlu Yükleme Dosyası (CSV)",
-                data=st.session_state['csv_bytes'],
-                file_name="TMAXX_YUKLEME.csv",
-                mime="text/csv",
-            )
+            st.markdown("##### 📤 2. Tmaxx Dosyaları")
+            # YENİ: Sözlükteki tüm dosyalar için döngüyle buton oluşturuluyor
+            if st.session_state['tmaxx_files']:
+                for file_name, file_bytes in st.session_state['tmaxx_files'].items():
+                    st.download_button(
+                        label=f"📥 {file_name}",
+                        data=file_bytes,
+                        file_name=file_name,
+                        mime="text/csv",
+                        key=f"dl_btn_{file_name}"
+                    )
+            else:
+                st.info("Tmaxx verisi bulunamadı.")
         
         with col_d3:
             if st.session_state['skipped_bytes']:
