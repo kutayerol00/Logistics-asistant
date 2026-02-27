@@ -26,8 +26,6 @@ st.markdown("""
     }
     
     /* DRAG & DROP ALANINI ESTETİK VE MODERN HALE GETİRME */
-    
-    /* 1. Ana çerçeve ve arka plan */
     [data-testid="stFileUploader"] section {
         padding: 3rem 2rem !important;
         background-color: rgba(255, 255, 255, 0.03) !important;
@@ -40,25 +38,21 @@ st.markdown("""
         transition: all 0.3s ease-in-out !important;
     }
 
-    /* 2. İç kısımdaki boşluğu sıfırla */
     [data-testid="stFileUploader"] section > div {
         background-color: transparent !important; 
     }
 
-    /* 3. Mouse ile üzerine gelindiğinde (Hover efekti) */
     [data-testid="stFileUploader"] section:hover {
         background-color: rgba(255, 255, 255, 0.06) !important;
         border-color: #4da6ff !important;
         box-shadow: 0px 0px 15px rgba(77, 166, 255, 0.15) !important;
     }
 
-    /* 4. Drag and drop yazıları (Okunabilirlik için) */
     [data-testid="stFileUploader"] section div div {
         color: #b0bec5 !important;
         font-size: 1.05rem !important;
     }
     
-    /* 5. SVG İkonunu renklendirme (Bulut ikonu) */
     [data-testid="stFileUploader"] section svg {
         fill: #4da6ff !important;
         width: 60px !important;
@@ -66,7 +60,6 @@ st.markdown("""
         margin-bottom: 10px !important;
     }
 
-    /* 6. "Browse files" butonu özelleştirmesi */
     [data-testid="stFileUploader"] section button {
         background-color: #4da6ff !important;
         color: #121212 !important;
@@ -83,7 +76,6 @@ st.markdown("""
         color: white !important;
     }
 
-    /* Üstteki Bilgilendirme Metni (Etiket) */
     .stFileUploader label {
         font-size: 1.1rem !important;
         font-weight: 600 !important;
@@ -145,11 +137,23 @@ def extract_container_from_full_row(row):
 
 def extract_volume_from_full_row(row):
     row_str = " ".join([str(val).upper() for val in row.values])
-    if re.search(r'40\s*(HC|HQ|H/C)', row_str): return "40HC"
-    if re.search(r'45\s*(HC|HQ|FT|\'|")', row_str): return "45HC"
-    if re.search(r'20\s*(DC|GP|DV|FT|\'|")', row_str): return "20DC"
-    if re.search(r'40\s*(DC|GP|DV|FT|\'|")', row_str): return "40DC"
-    return ""
+    types = set()
+    
+    # Satırdaki tüm olası tipleri set'e (küme) ekliyoruz
+    if re.search(r'40\s*(HC|HQ|H/C)', row_str): types.add("40HC")
+    if re.search(r'45\s*(HC|HQ|FT|\'|")', row_str): types.add("45HC")
+    if re.search(r'20\s*(DC|GP|DV|ST|FT|\'|")', row_str): types.add("20DC")
+    if re.search(r'40\s*(DC|GP|DV|ST)', row_str): types.add("40DC")
+    elif re.search(r'40\s*(\'|")', row_str) and "40HC" not in types:
+        types.add("40DC")
+        
+    # Eğer aynı satırda 1'den fazla tip bulunduysa ŞÜPHELİ işaretle
+    if len(types) > 1:
+        return "⚠️ ŞÜPHELİ (KARIŞIK TİP)"
+    elif len(types) == 1:
+        return list(types)[0]
+    else:
+        return ""
 
 def extract_vessel_info_smart(row, current_v_v_col):
     for val in row.values:
@@ -183,7 +187,8 @@ def process_smart_rows(df):
         if mbl_val and containers:
             for cntr in containers:
                 teu_val = ''
-                if '40' in ctype or '45' in ctype: teu_val = 2
+                if "ŞÜPHELİ" in ctype: teu_val = "" # Şüpheliyse TEU hesaplama
+                elif '40' in ctype or '45' in ctype: teu_val = 2
                 elif '20' in ctype: teu_val = 1
 
                 row_data = {
@@ -221,10 +226,11 @@ with st.sidebar:
     3. **Sonuçlar:** - **Tam Liste:** Birleştirilmiş tüm liste.
        - **Tmaxx Listesi:** Her gemi/sayfa için ayrı tmaxx yükleme listesi.
        - **Hata Listesi:** Konteyneri veya MBL'i bulunamayanlar.
-    ℹ️ **Not:** Eğer bir MBL'in konteyneri herhangi bir dosyada bulunduysa, diğer dosyalardaki hatalı hali **otomatik silinir**.
+    
+    ⚠️ **Dikkat:** Bir satırda birden fazla farklı konteyner tipi bulunursa sistem yanlış eşleşmeyi önlemek için konteyner tipini **ŞÜPHELİ (KARIŞIK TİP)** olarak işaretler. Bu kayıtları manuel düzeltmelisiniz.
     """)
     st.markdown("---")
-    st.caption("v2.4 - Multi-Tmaxx Export")
+    st.caption("v2.5 - Smart Volume Detection & Multi-Tmaxx")
 
 # ==========================================
 # 4. ANA EKRAN
@@ -241,7 +247,7 @@ if 'excel_bytes' not in st.session_state:
     st.session_state['excel_bytes'] = None
 if 'skipped_bytes' not in st.session_state:
     st.session_state['skipped_bytes'] = None 
-if 'tmaxx_files' not in st.session_state: # YENİ: Tek bir csv_bytes yerine dict tutuyoruz
+if 'tmaxx_files' not in st.session_state:
     st.session_state['tmaxx_files'] = {}
 
 uploaded_files = st.file_uploader("📂 Excel Dosyalarını Buraya Bırakın", type=["xlsx", "xls"], accept_multiple_files=True)
@@ -354,17 +360,13 @@ if uploaded_files:
                         skipped_buffer.seek(0)
                         skipped_bytes = skipped_buffer
 
-                    # ==========================================
-                    # YENİ: TMAXX Dosyalarını Her Sayfa İçin Ayrı Üretme
-                    # ==========================================
+                    # TMAXX Dosyalarını Her Sayfa İçin Ayrı Üretme
                     if "VOL" not in final_df.columns: final_df["VOL"] = ""
                     
                     tmaxx_files_dict = {}
                     
-                    # KAYNAK_SAYFA sütununa göre gruplama yapıyoruz (Her sheet = Bir gemi)
                     if 'KAYNAK_SAYFA' in final_df.columns:
                         for sheet_name in final_df['KAYNAK_SAYFA'].unique():
-                            # Sadece bu sayfaya (gemiye) ait olan verileri filtrele
                             sheet_df = final_df[final_df['KAYNAK_SAYFA'] == sheet_name]
                             
                             tmaxx_df = sheet_df[["CNTR NO", "VOL"]].copy()
@@ -373,24 +375,21 @@ if uploaded_files:
                             
                             if not tmaxx_df.empty:
                                 output_csv = tmaxx_df.to_csv(index=False, sep=';', encoding='utf-8-sig').encode('utf-8-sig')
-                                # Dosya adı olarak Sheet ismini veriyoruz (geçersiz karakterleri temizleyerek)
                                 safe_name = str(sheet_name).replace("/", "_").replace("\\", "_")
                                 tmaxx_files_dict[f"{safe_name}.csv"] = output_csv
                     else:
-                        # Eğer bir şekilde KAYNAK_SAYFA yoksa eski sistem fallback
                         tmaxx_df = final_df[["CNTR NO", "VOL"]].copy()
                         tmaxx_df.columns = ['Container No', 'Container Type']
                         tmaxx_df = tmaxx_df[tmaxx_df['Container No'] != '']
                         if not tmaxx_df.empty:
                             output_csv = tmaxx_df.to_csv(index=False, sep=';', encoding='utf-8-sig').encode('utf-8-sig')
                             tmaxx_files_dict["TMAXX_YUKLEME.csv"] = output_csv
-                    # ==========================================
 
                     st.session_state['processed_data'] = final_df
                     st.session_state['skipped_data'] = final_skipped_df
                     st.session_state['excel_bytes'] = output_excel
                     st.session_state['skipped_bytes'] = skipped_bytes
-                    st.session_state['tmaxx_files'] = tmaxx_files_dict # Dict olarak kaydedildi
+                    st.session_state['tmaxx_files'] = tmaxx_files_dict
                     st.session_state['report_stats'] = {
                         'skipped': len(final_skipped_df),
                         'duplicates': dropped_duplicates,
@@ -412,12 +411,16 @@ if st.session_state['processed_data'] is not None:
     stats = st.session_state['report_stats']
     final_df = st.session_state['processed_data']
     
+    # Şüpheli kayıtları sayma
+    suspicious_count = len(final_df[final_df['VOL'] == "⚠️ ŞÜPHELİ (KARIŞIK TİP)"]) if 'VOL' in final_df.columns else 0
+    
     st.write("")
     
-    c1, c2, c3 = st.columns(3)
+    c1, c2, c3, c4 = st.columns(4)
     c1.metric("Toplam Konteyner", stats['final'], "✅ Hazır")
-    c2.metric("Birleştirilen / Silinen", stats['duplicates'], "🗑️ Temiz")
-    c3.metric("Eksik Veri (Kalan)", stats['skipped'], "⚠️ İncele" if stats['skipped'] > 0 else "Normal")
+    c2.metric("Birleşen/Silinen", stats['duplicates'], "🗑️ Temiz")
+    c3.metric("Eksik Veri", stats['skipped'], "⚠️ İncele" if stats['skipped'] > 0 else "Normal")
+    c4.metric("Şüpheli Kayıt", suspicious_count, "Manuel Kontrol" if suspicious_count > 0 else "Temiz", delta_color="inverse")
     
     st.markdown("---")
 
@@ -454,7 +457,6 @@ if st.session_state['processed_data'] is not None:
         
         with col_d2:
             st.markdown("##### 📤 2. Tmaxx Dosyaları")
-            # YENİ: Sözlükteki tüm dosyalar için döngüyle buton oluşturuluyor
             if st.session_state['tmaxx_files']:
                 for file_name, file_bytes in st.session_state['tmaxx_files'].items():
                     st.download_button(
