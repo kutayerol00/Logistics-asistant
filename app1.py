@@ -348,7 +348,7 @@ if st.session_state['processed_data'] is not None:
     c1.metric("Toplam Konteyner", stats['final'], "✅ İşlenen")
     c2.metric("Tekrar Eden Hata", stats['duplicates'], "🚨 Mükerrer", delta_color="inverse" if stats['duplicates'] > 0 else "normal")
     c3.metric("Toplam Hatalı Veri", stats['skipped'], "⚠️ İncele" if stats['skipped'] > 0 else "Temiz", delta_color="inverse" if stats['skipped'] > 0 else "normal")
-    c4.metric("Şüpheli Kayıt", suspicious_count, "Manuel Kontrol" if suspicious_count > 0 else "Temiz", delta_color="inverse" if suspicious_count > 0 else "normal")
+    c4.metric("Konteyner tipi belli olmayan kayıt", suspicious_count, "Manuel Kontrol" if suspicious_count > 0 else "Temiz", delta_color="inverse" if suspicious_count > 0 else "normal")
     
     st.markdown("---")
 
@@ -395,4 +395,5 @@ if st.session_state['processed_data'] is not None:
     if st.button("🔄 Yeni İşlem Başlat"):
         for key in st.session_state.keys(): del st.session_state[key]
         st.rerun()
+
 
