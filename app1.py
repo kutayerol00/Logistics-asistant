@@ -353,7 +353,7 @@ if st.session_state['processed_data'] is not None:
     st.markdown("---")
 
     if stats['duplicates'] > 0:
-        st.error(f"🚨 DİKKAT: İşlenen verilerde {stats['duplicates']} adet tekrar hatası (Konteyner veya Girdi Dosyası MBL tekrarı) bulundu! Çıktılarda kırmızı olarak işaretlenmiştir.")
+        st.error(f"🚨 DİKKAT: İşlenen verilerde {stats['duplicates']} adet mükerrer kayıt bulundu! Çıktılarda kırmızı olarak işaretlenmiştir.")
 
     tab1, tab2, tab3 = st.tabs(["📊 Grafikler", "📥 İndir", "👀 Liste"])
 
@@ -395,3 +395,4 @@ if st.session_state['processed_data'] is not None:
     if st.button("🔄 Yeni İşlem Başlat"):
         for key in st.session_state.keys(): del st.session_state[key]
         st.rerun()
+
