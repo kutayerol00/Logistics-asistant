@@ -3,7 +3,7 @@ import pandas as pd
 import re
 import io
 import plotly.express as px
-import uuid  # Satır kimlikleri için eklendi
+import uuid
 
 # ==========================================
 # 1. AYARLAR VE STİL
@@ -76,8 +76,8 @@ def extract_container_from_full_row(row):
     for m in matches:
         clean_m = m.replace(" ", "").replace("\t", "")
         if 10 <= len(clean_m) <= 11:
-            if clean_m not in valid_containers:
-                valid_containers.append(clean_m)
+            # DÜZELTME: Aynı hücrede tekrar eden konteynerleri DÜŞÜRMÜYORUZ. Hepsini listeye alıyoruz ki program yakalayıp kırmızı yapsın.
+            valid_containers.append(clean_m)
     return valid_containers
 
 def extract_volume_from_full_row(row):
@@ -112,11 +112,10 @@ def process_smart_rows(df):
     skipped_rows = [] 
     
     for _, row in df.iterrows():
-        # Tamamen boş satırları atla
         if row.astype(str).str.strip().replace(['NAN', 'NONE', ''], pd.NA).isna().all():
             continue
 
-        input_row_id = str(uuid.uuid4()) # Bu girdi satırı için benzersiz kimlik
+        input_row_id = str(uuid.uuid4()) 
         
         mbl_val = ""
         if mbl_col_name:
@@ -128,7 +127,6 @@ def process_smart_rows(df):
         ctype = extract_volume_from_full_row(row)
         vessel_val = extract_vessel_info_smart(row, vv_col_name)
 
-        # HEM MBL HEM KONTEYNER VARSA NORMAL İŞLE (ÇIKTI ÇOĞALTMA)
         if mbl_val and containers:
             for cntr in containers:
                 teu_val = ''
@@ -137,7 +135,7 @@ def process_smart_rows(df):
                 elif '20' in ctype: teu_val = 1
 
                 row_data = {
-                    "INPUT_ROW_ID": input_row_id, # Kimliği kaydet (Girdi dosyasındaki tekrarı anlamak için)
+                    "INPUT_ROW_ID": input_row_id, 
                     "MB/L NO": mbl_val,
                     "CNTR NO": cntr,
                     "VOL": ctype if ctype else "Unknown", 
@@ -149,7 +147,6 @@ def process_smart_rows(df):
                      if actual_col: row_data[col] = str(row[actual_col])
                 new_rows.append(row_data)
         
-        # BİRİ BİLE EKSİKSE DİREKT HATAYA AT
         else:
             row_dict = row.to_dict()
             if not mbl_val and not containers:
@@ -181,7 +178,7 @@ with st.sidebar:
         - **Hata Listesi:** MBL/Konteyneri bulunamayanlar veya listede mükerrer geçen veriler.
     """)
     st.markdown("---")
-    st.caption("v2.8 - Girdi Bazlı MBL & Global Konteyner Kontrolü")
+    st.caption("v2.9 - Hücre İçi Mükerrer Konteyner Kontrolü")
 
 # ==========================================
 # 4. ANA EKRAN
@@ -242,15 +239,12 @@ if uploaded_files:
                     final_df['IS_CNTR_DUPLICATE'] = final_df.duplicated(subset=['CNTR NO'], keep=False)
 
                     # === 2. MBL KONTROLÜ (GİRDİ DOSYASI BAZLI) ===
-                    # Aynı MBL'in kaç farklı GİRDİ SATIRINDAN (INPUT_ROW_ID) geldiğini sayarız
                     mbl_row_counts = final_df.groupby('MB/L NO')['INPUT_ROW_ID'].nunique()
                     duplicate_mbls = mbl_row_counts[mbl_row_counts > 1].index
                     final_df['IS_MBL_DUPLICATE'] = final_df['MB/L NO'].isin(duplicate_mbls)
 
-                    # Genel Hata Bayrağı
                     final_df['IS_ERROR'] = final_df['IS_CNTR_DUPLICATE'] | final_df['IS_MBL_DUPLICATE']
                     
-                    # Hatalı kayıtları tespit edip ayıklayalım (Silmeden Hatalar Listesine Ekliyoruz)
                     error_rows = final_df[final_df['IS_ERROR'] == True].copy()
                     error_count = len(error_rows)
                     
@@ -262,7 +256,6 @@ if uploaded_files:
                             return " + ".join(reasons)
                         
                         error_rows['HATA_NEDENI'] = error_rows.apply(get_error_reason, axis=1)
-                        # Bu hataları eksik verilerin tutulduğu hata listesine ekle
                         final_skipped_df = pd.concat([final_skipped_df, error_rows], ignore_index=True).fillna('')
 
                     final_count = len(final_df)
@@ -270,14 +263,12 @@ if uploaded_files:
                     # ÇIKTILAR (1. Birleştirilmiş Liste Excel)
                     output_excel = io.BytesIO()
                     with pd.ExcelWriter(output_excel, engine='xlsxwriter') as writer:
-                        # Gereksiz sistem sütunlarını at
                         df_export = final_df.drop(columns=['INPUT_ROW_ID', 'IS_CNTR_DUPLICATE', 'IS_MBL_DUPLICATE', 'IS_ERROR'])
                         df_export.to_excel(writer, index=False, sheet_name='Sheet1')
                         workbook = writer.book
                         worksheet = writer.sheets['Sheet1']
                         red_format = workbook.add_format({'bg_color': '#FFC7CE', 'font_color': '#9C0006'})
                         
-                        # Hatalı/Tekrar edenleri excelde boydan boya kırmızıya boya
                         for row_num, is_err in enumerate(final_df['IS_ERROR']):
                             if is_err: worksheet.set_row(row_num + 1, None, red_format)
                     output_excel.seek(0)
@@ -324,7 +315,6 @@ if uploaded_files:
                                 safe_name = str(sheet_name).replace("/", "_").replace("\\", "_")
                                 tmaxx_files_dict[f"{safe_name}.csv"] = output_csv
 
-                    # Ekranda göstermek için temiz dataframe
                     display_df = final_df.drop(columns=['INPUT_ROW_ID', 'IS_CNTR_DUPLICATE', 'IS_MBL_DUPLICATE', 'IS_ERROR'])
 
                     st.session_state['processed_data'] = display_df
