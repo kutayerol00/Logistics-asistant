@@ -26,6 +26,17 @@ st.markdown("""
     [data-testid="stFileUploader"] section button { background-color: #4da6ff !important; color: #121212 !important; font-weight: 600 !important; border-radius: 8px !important; border: none !important; padding: 0.5rem 1.5rem !important; margin-top: 15px !important; transition: all 0.2s ease !important; }
     [data-testid="stFileUploader"] section button:hover { background-color: #2b8ce6 !important; color: white !important; }
     .stFileUploader label { font-size: 1.1rem !important; font-weight: 600 !important; margin-bottom: 0.8rem !important; }
+    
+    .color-box {
+        display: inline-block;
+        width: 15px;
+        height: 15px;
+        border-radius: 3px;
+        margin-right: 8px;
+        vertical-align: middle;
+    }
+    .red-box { background-color: #FFC7CE; border: 1px solid #9C0006; }
+    .orange-box { background-color: #FCE4D6; border: 1px solid #C65911; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -69,7 +80,6 @@ def extract_container_from_full_row(row):
     row_str = " ".join([str(val).upper() for val in row.values])
     row_str = row_str.replace('/', ' ').replace(',', ' ').replace('&', ' ').replace(';', ' ').replace('-', ' ').replace(':', ' ')
     
-    # Hatalı uzunlukları da yakalayabilmek için rakam kısmını (5 ile 8 arası) esnek tuttuk.
     matches = re.findall(r'\b[A-Z]{4}\s*\d{5,8}\b', row_str)
     
     valid_containers = []
@@ -173,7 +183,7 @@ with st.sidebar:
         - **Hata Listesi:** MBL/Konteyneri bulunamayanlar, mükerrer geçenler veya uzunluğu hatalı olan konteynerler.
     """)
     st.markdown("---")
-    st.caption("v3.0 - Hane Sayısı Kontrolü Eklendi")
+    st.caption("v3.1 - Hata Renklendirmeleri Eklendi")
 
 
 
@@ -228,19 +238,15 @@ if uploaded_files:
 
                     raw_count = len(final_df)
 
-                    # 1. Kontrol: Mükerrer Konteyner
                     final_df['IS_CNTR_DUPLICATE'] = final_df.duplicated(subset=['CNTR NO'], keep=False)
 
-                    # 2. Kontrol: Girdide Tekrar Eden MBL
                     mbl_row_counts = final_df.groupby('MB/L NO')['INPUT_ROW_ID'].nunique()
                     duplicate_mbls = mbl_row_counts[mbl_row_counts > 1].index
                     final_df['IS_MBL_DUPLICATE'] = final_df['MB/L NO'].isin(duplicate_mbls)
 
-                    # 3. Kontrol: Konteyner No Uzunluk Kontrolü (Boşluklar hariç tam 11 olmalı)
                     final_df['CLEAN_CNTR'] = final_df['CNTR NO'].astype(str).str.replace(r'\s+', '', regex=True)
                     final_df['IS_INVALID_LENGTH'] = final_df['CLEAN_CNTR'].str.len() != 11
 
-                    # Tüm hataları birleştir
                     final_df['IS_ERROR'] = final_df['IS_CNTR_DUPLICATE'] | final_df['IS_MBL_DUPLICATE'] | final_df['IS_INVALID_LENGTH']
                     
                     error_rows = final_df[final_df['IS_ERROR'] == True].copy()
@@ -249,9 +255,9 @@ if uploaded_files:
                     if not error_rows.empty:
                         def get_error_reason(row):
                             reasons = []
+                            if row['IS_INVALID_LENGTH']: reasons.append("KONTEYNER NO EKSİK VEYA FAZLA")
                             if row['IS_CNTR_DUPLICATE']: reasons.append("TEKRAR EDEN KONTEYNER")
                             if row['IS_MBL_DUPLICATE']: reasons.append("GİRDİDE TEKRAR EDEN MBL")
-                            if row['IS_INVALID_LENGTH']: reasons.append("KONTEYNER NO EKSİK VEYA FAZLA")
                             return " + ".join(reasons)
                         
                         error_rows['HATA_NEDENI'] = error_rows.apply(get_error_reason, axis=1)
@@ -259,20 +265,25 @@ if uploaded_files:
 
                     final_count = len(final_df)
 
-                    # EXCEL ÇIKTISI OLUŞTURMA
+                    # EXCEL ÇIKTISI OLUŞTURMA (Renklendirme Mantığı ile)
                     output_excel = io.BytesIO()
                     with pd.ExcelWriter(output_excel, engine='xlsxwriter') as writer:
                         df_export = final_df.drop(columns=['INPUT_ROW_ID', 'IS_CNTR_DUPLICATE', 'IS_MBL_DUPLICATE', 'IS_INVALID_LENGTH', 'CLEAN_CNTR', 'IS_ERROR'])
                         df_export.to_excel(writer, index=False, sheet_name='Sheet1')
                         workbook = writer.book
                         worksheet = writer.sheets['Sheet1']
-                        red_format = workbook.add_format({'bg_color': '#FFC7CE', 'font_color': '#9C0006'})
                         
-                        for row_num, is_err in enumerate(final_df['IS_ERROR']):
-                            if is_err: worksheet.set_row(row_num + 1, None, red_format)
+                        format_red = workbook.add_format({'bg_color': '#FFC7CE', 'font_color': '#9C0006'})
+                        format_orange = workbook.add_format({'bg_color': '#FCE4D6', 'font_color': '#C65911'})
+                        
+                        for row_num in range(len(final_df)):
+                            if final_df['IS_INVALID_LENGTH'].iloc[row_num]:
+                                worksheet.set_row(row_num + 1, None, format_red)
+                            elif final_df['IS_CNTR_DUPLICATE'].iloc[row_num] or final_df['IS_MBL_DUPLICATE'].iloc[row_num]:
+                                worksheet.set_row(row_num + 1, None, format_orange)
                     output_excel.seek(0)
 
-                    # SKIPPED EXCEL ÇIKTISI
+                    # SKIPPED EXCEL ÇIKTISI (Renklendirme Mantığı ile)
                     skipped_bytes = None
                     if not final_skipped_df.empty:
                         skipped_buffer = io.BytesIO()
@@ -281,13 +292,17 @@ if uploaded_files:
                             df_skipped_export.to_excel(writer, index=False, sheet_name='Hatalar')
                             workbook = writer.book
                             worksheet = writer.sheets['Hatalar']
-                            red_format = workbook.add_format({'bg_color': '#FFC7CE', 'font_color': '#9C0006'})
+                            
+                            format_red = workbook.add_format({'bg_color': '#FFC7CE', 'font_color': '#9C0006'})
+                            format_orange = workbook.add_format({'bg_color': '#FCE4D6', 'font_color': '#C65911'})
                             
                             if 'HATA_NEDENI' in df_skipped_export.columns:
                                 for row_num, reason in enumerate(df_skipped_export['HATA_NEDENI']):
-                                    # TEKRAR edenler veya UZUNLUK hatası olanları kırmızı yap
-                                    if "TEKRAR" in str(reason) or "EKSİK VEYA FAZLA" in str(reason): 
-                                        worksheet.set_row(row_num + 1, None, red_format)
+                                    reason_str = str(reason)
+                                    if "EKSİK VEYA FAZLA" in reason_str:
+                                        worksheet.set_row(row_num + 1, None, format_red)
+                                    elif "TEKRAR" in reason_str:
+                                        worksheet.set_row(row_num + 1, None, format_orange)
                         skipped_buffer.seek(0)
                         skipped_bytes = skipped_buffer
 
@@ -353,21 +368,27 @@ if st.session_state['processed_data'] is not None:
     st.markdown("---")
 
     if stats['duplicates_and_errors'] > 0:
-        st.error(f"🚨 DİKKAT: İşlenen verilerde {stats['duplicates_and_errors']} adet mükerrer veya hatalı uzunlukta kayıt bulundu! Çıktılarda kırmızı olarak işaretlenmiştir.")
+        st.error(f"🚨 DİKKAT: İşlenen verilerde {stats['duplicates_and_errors']} adet mükerrer veya hatalı uzunlukta kayıt bulundu! Çıktılarda işaretlenmiştir.")
 
-    tab1, tab2, tab3 = st.tabs(["📊 Grafikler", "📥 İndir", "👀 Liste"])
+    tab1, tab2, tab3 = st.tabs(["📊 Grafikler ve Bilgi", "📥 İndir", "👀 Liste"])
 
     with tab1:
         if not final_df.empty:
-            col_graph1, col_graph2 = st.columns(2)
-            with col_graph1:
-                st.subheader("Gemi Yükü")
-                plot_df = final_df.copy()
-                plot_df['V/V'] = plot_df['V/V'].replace('', 'Belirsiz')
-                fig_vessel = px.pie(plot_df, names='V/V', title='Gemi Dağılımı', hole=0.4)
-                st.plotly_chart(fig_vessel, key="chart1", use_container_width=True) 
+            col_info, col_graph2 = st.columns([1.5, 2])
+            with col_info:
+                st.subheader("🎨 Excel Çıktıları Renk Kodları")
+                st.info("""
+                İndireceğiniz **Excel dosyalarındaki** satırlar, içerdiği hata tipine göre otomatik renklendirilir:
+                """)
+                st.markdown("""
+                <div><span class="color-box red-box"></span> <b>Kırmızı:</b> Konteyner No Eksik veya Fazla (11 Hane Değil)</div>
+                <div style="margin-top: 10px;"><span class="color-box orange-box"></span> <b>Turuncu:</b> Mükerrer (Tekrar Eden) Kayıt</div>
+                <br>
+                <small><em>* İpucu: Bir satırda hem mükerrer hem uzunluk hatası varsa, kırmızı renk (uzunluk hatası) öncelikli gösterilir.</em></small>
+                """, unsafe_allow_html=True)
             with col_graph2:
                 st.subheader("Konteyner Tipleri")
+                plot_df = final_df.copy()
                 plot_df['VOL'] = plot_df['VOL'].replace('', 'Belirsiz')
                 fig_vol = px.bar(plot_df['VOL'].value_counts().reset_index(), x='VOL', y='count', title='Tip Dağılımı', labels={'count':'Adet', 'VOL':'Tip'})
                 st.plotly_chart(fig_vol, key="chart2", use_container_width=True)
