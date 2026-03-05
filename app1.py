@@ -29,9 +29,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ==========================================
-# 2. YARDIMCI FONKSİYONLAR
-# ==========================================
+
 
 def make_columns_unique(columns):
     seen = {}
@@ -76,7 +74,7 @@ def extract_container_from_full_row(row):
     for m in matches:
         clean_m = m.replace(" ", "").replace("\t", "")
         if 10 <= len(clean_m) <= 11:
-            # DÜZELTME: Aynı hücrede tekrar eden konteynerleri DÜŞÜRMÜYORUZ. Hepsini listeye alıyoruz ki program yakalayıp kırmızı yapsın.
+            #  Aynı hücrede tekrar eden konteynerleri DÜŞÜRMÜYORUZ. Hepsini listeye alıyoruz ki program yakalayıp kırmızı yapsın.
             valid_containers.append(clean_m)
     return valid_containers
 
@@ -163,9 +161,7 @@ def process_smart_rows(df):
     return pd.DataFrame(new_rows), pd.DataFrame(skipped_rows)
 
 
-# ==========================================
-# 3. YAN MENÜ
-# ==========================================
+
 
 with st.sidebar:
     st.image("https://cdn-icons-png.flaticon.com/512/2821/2821854.png", width=100) 
@@ -180,9 +176,7 @@ with st.sidebar:
     st.markdown("---")
     st.caption("v2.9 - Hücre İçi Mükerrer Konteyner Kontrolü")
 
-# ==========================================
-# 4. ANA EKRAN
-# ==========================================
+
 
 st.title("🚢 Lojistik Operasyon Asistanı")
 st.markdown("Dağınık Excel dosyalarını birleştirir, **eksik ve mükerrer kayıtları kontrol ederek temizler** ve yüklemeye hazırlar.")
@@ -235,10 +229,10 @@ if uploaded_files:
 
                     raw_count = len(final_df)
 
-                    # === 1. KONTEYNER KONTROLÜ (GLOBAL) ===
+                    
                     final_df['IS_CNTR_DUPLICATE'] = final_df.duplicated(subset=['CNTR NO'], keep=False)
 
-                    # === 2. MBL KONTROLÜ (GİRDİ DOSYASI BAZLI) ===
+                   
                     mbl_row_counts = final_df.groupby('MB/L NO')['INPUT_ROW_ID'].nunique()
                     duplicate_mbls = mbl_row_counts[mbl_row_counts > 1].index
                     final_df['IS_MBL_DUPLICATE'] = final_df['MB/L NO'].isin(duplicate_mbls)
@@ -260,7 +254,7 @@ if uploaded_files:
 
                     final_count = len(final_df)
 
-                    # ÇIKTILAR (1. Birleştirilmiş Liste Excel)
+                    
                     output_excel = io.BytesIO()
                     with pd.ExcelWriter(output_excel, engine='xlsxwriter') as writer:
                         df_export = final_df.drop(columns=['INPUT_ROW_ID', 'IS_CNTR_DUPLICATE', 'IS_MBL_DUPLICATE', 'IS_ERROR'])
@@ -273,7 +267,7 @@ if uploaded_files:
                             if is_err: worksheet.set_row(row_num + 1, None, red_format)
                     output_excel.seek(0)
 
-                    # Hatalı Listeyi (3. Excel) Yazma
+                    
                     skipped_bytes = None
                     if not final_skipped_df.empty:
                         skipped_buffer = io.BytesIO()
@@ -290,7 +284,7 @@ if uploaded_files:
                         skipped_buffer.seek(0)
                         skipped_bytes = skipped_buffer
 
-                    # TMAXX Dosyalarını Her Sayfa İçin Ayrı Üretme (2. Liste)
+                   
                     if "VOL" not in final_df.columns: final_df["VOL"] = ""
                     tmaxx_files_dict = {}
                     
@@ -334,9 +328,7 @@ if uploaded_files:
                 else:
                     st.error("❌ Dosyalar okunamadı veya veri bulunamadı.")
 
-# ==========================================
-# 5. DASHBOARD
-# ==========================================
+
 
 if st.session_state['processed_data'] is not None:
     stats = st.session_state['report_stats']
@@ -395,6 +387,7 @@ if st.session_state['processed_data'] is not None:
     if st.button("🔄 Yeni İşlem Başlat"):
         for key in st.session_state.keys(): del st.session_state[key]
         st.rerun()
+
 
 
 
