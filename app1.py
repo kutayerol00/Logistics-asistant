@@ -123,7 +123,6 @@ def process_smart_rows(df):
     for _, row in df.iterrows():
         if row.astype(str).str.strip().replace(['NAN', 'NONE', ''], pd.NA).isna().all():
             continue
-
         input_row_id = str(uuid.uuid4()) 
         
         mbl_val = ""
@@ -142,275 +141,98 @@ def process_smart_rows(df):
                 if "ŞÜPHELİ" in ctype: teu_val = ""
                 elif '40' in ctype or '45' in ctype: teu_val = 2
                 elif '20' in ctype: teu_val = 1
-
                 row_data = {
                     "INPUT_ROW_ID": input_row_id, 
-                    "MB/L NO": mbl_val,
-                    "CNTR NO": cntr,
-                    "VOL": ctype if ctype else "Unknown", 
-                    "TEU": teu_val,
-                    "V/V": vessel_val
+                    "MB/L NO": mbl_val, "CNTR NO": cntr,
+                    "VOL": ctype if ctype else "Unknown", "TEU": teu_val, "V/V": vessel_val
                 }
                 for col in ["POL", "POD", "BOOKING NO"]:
                      actual_col = next((c for c in df.columns if col in str(c).upper()), None)
                      if actual_col: row_data[col] = str(row[actual_col])
                 new_rows.append(row_data)
-        
         else:
             row_dict = row.to_dict()
-            if not mbl_val and not containers:
-                row_dict['HATA_NEDENI'] = "MBL VE KONTEYNER NO BULUNAMADI"
-            elif not mbl_val:
-                row_dict['HATA_NEDENI'] = "EKSİK MBL NO"
-            else:
-                row_dict['HATA_NEDENI'] = "EKSİK KONTEYNER NO"
-            
-            row_dict['BULUNAN_MBL'] = mbl_val if mbl_val else "YOK"
-            row_dict['BULUNAN_CNTR'] = ", ".join(containers) if containers else "YOK"
+            row_dict['HATA_NEDENI'] = "EKSİK VERİ"
             skipped_rows.append(row_dict)
-
     return pd.DataFrame(new_rows), pd.DataFrame(skipped_rows)
 
 # ==========================================
-# 3. UI - SIDEBAR VE HEADER
-# ==========================================
-
-with st.sidebar:
-    st.image("https://cdn-icons-png.flaticon.com/512/2821/2821854.png", width=100) 
-    st.title("Kullanım Kılavuzu")
-    st.markdown("""
-    1. **Dosyaları Sürükleyin:** Ortadaki alana Excel dosyalarını atın.
-    2. **Başlat:** Sistem taramaya başlar.
-    3. **Sonuçlar:** - **Tam Liste:** Birleştirilmiş tüm liste.
-        - **Tmaxx Listesi:** Her sayfa için ayrı yükleme listesi.
-        - **Hata Listesi:** MBL/Konteyneri bulunamayanlar, mükerrer geçenler veya uzunluğu hatalı olan konteynerler.
-    """)
-    st.markdown("---")
-    st.caption("v3.2 - CSV Virgül Ayracı Güncellendi")
-
-st.title("🚢 Lojistik Operasyon Asistanı")
-st.markdown("Dağınık Excel dosyalarını birleştirir, **eksik, mükerrer ve hatalı konteyner kayıtlarını kontrol ederek temizler** ve yüklemeye hazırlar.")
-
-# ==========================================
-# 4. SESSION STATE VE DOSYA İŞLEME
+# 3. ANA UYGULAMA MANTIĞI
 # ==========================================
 
 if 'processed_data' not in st.session_state:
     st.session_state['processed_data'] = None
-    st.session_state['skipped_data'] = None 
     st.session_state['report_stats'] = {} 
-if 'excel_bytes' not in st.session_state: st.session_state['excel_bytes'] = None
-if 'skipped_bytes' not in st.session_state: st.session_state['skipped_bytes'] = None 
-if 'tmaxx_files' not in st.session_state: st.session_state['tmaxx_files'] = {}
+    st.session_state['tmaxx_files'] = {}
+
+with st.sidebar:
+    st.title("Kullanım Kılavuzu")
+    st.markdown("CSV çıktıları artık **başlıksız** ve **noktalı virgül (;)** ayracıyla üretilmektedir.")
+
+st.title("🚢 Lojistik Operasyon Asistanı")
 
 uploaded_files = st.file_uploader("📂 Excel Dosyalarını Buraya Bırakın", type=["xlsx", "xls"], accept_multiple_files=True)
 
-if uploaded_files and st.session_state.get('last_uploaded_files') != uploaded_files:
-    st.session_state['processed_data'] = None
-    st.session_state['last_uploaded_files'] = uploaded_files
-
 if uploaded_files:
-    if st.session_state['processed_data'] is None:
-        if st.button("🚀 Analizi Başlat", type="primary"): 
-            
-            with st.spinner("Dosyalar okunuyor, kontroller yapılıyor..."):
-                all_dfs = []
-                all_skipped_dfs = [] 
-                my_bar = st.progress(0, text="Başlıyor...")
+    if st.button("🚀 Analizi Başlat", type="primary"): 
+        with st.spinner("İşleniyor..."):
+            all_dfs = []
+            for uploaded_file in uploaded_files:
+                xls = pd.read_excel(uploaded_file, sheet_name=None, header=None, dtype=str)
+                for sheet_name, raw_df in xls.items():
+                    df = find_and_set_header(raw_df)
+                    if df is not None:
+                        processed_df, _ = process_smart_rows(df)
+                        if not processed_df.empty:
+                            processed_df['KAYNAK_SAYFA'] = sheet_name
+                            all_dfs.append(processed_df)
 
-                for i, uploaded_file in enumerate(uploaded_files):
-                    try:
-                        xls = pd.read_excel(uploaded_file, sheet_name=None, header=None, dtype=str)
-                        for sheet_name, raw_df in xls.items():
-                            df = find_and_set_header(raw_df)
-                            if df is not None:
-                                processed_df, skipped_df = process_smart_rows(df)
-                                if not processed_df.empty:
-                                    processed_df['KAYNAK_DOSYA'] = uploaded_file.name
-                                    processed_df['KAYNAK_SAYFA'] = sheet_name
-                                    all_dfs.append(processed_df)
-                                if not skipped_df.empty:
-                                    skipped_df['KAYNAK_DOSYA'] = uploaded_file.name
-                                    skipped_df['KAYNAK_SAYFA'] = sheet_name
-                                    all_skipped_dfs.append(skipped_df)
-                    except Exception as e:
-                        st.error(f"Hata ({uploaded_file.name}): {e}")
-                    my_bar.progress((i + 1) / len(uploaded_files), text=f"Taranıyor: {uploaded_file.name}")
-
-                if all_dfs:
-                    final_df = pd.concat(all_dfs, ignore_index=True).fillna('')
-                    final_skipped_df = pd.concat(all_skipped_dfs, ignore_index=True).fillna('') if all_skipped_dfs else pd.DataFrame()
-
-                    raw_count = len(final_df)
-                    final_df['IS_CNTR_DUPLICATE'] = final_df.duplicated(subset=['CNTR NO'], keep=False)
-                    mbl_row_counts = final_df.groupby('MB/L NO')['INPUT_ROW_ID'].nunique()
-                    duplicate_mbls = mbl_row_counts[mbl_row_counts > 1].index
-                    final_df['IS_MBL_DUPLICATE'] = final_df['MB/L NO'].isin(duplicate_mbls)
-                    final_df['CLEAN_CNTR'] = final_df['CNTR NO'].astype(str).str.replace(r'\s+', '', regex=True)
-                    final_df['IS_INVALID_LENGTH'] = final_df['CLEAN_CNTR'].str.len() != 11
-                    final_df['IS_ERROR'] = final_df['IS_CNTR_DUPLICATE'] | final_df['IS_MBL_DUPLICATE'] | final_df['IS_INVALID_LENGTH']
+            if all_dfs:
+                final_df = pd.concat(all_dfs, ignore_index=True).fillna('')
+                
+                # Hata Kontrolleri
+                final_df['IS_CNTR_DUPLICATE'] = final_df.duplicated(subset=['CNTR NO'], keep=False)
+                final_df['IS_INVALID_LENGTH'] = final_df['CNTR NO'].str.replace(r'\s+', '', regex=True).str.len() != 11
+                
+                # CSV OLUŞTURMA (BAŞLIKSIZ VE NOKTALI VİRGÜLLÜ)
+                tmaxx_files_dict = {}
+                for sheet_name in final_df['KAYNAK_SAYFA'].unique():
+                    sheet_df = final_df[final_df['KAYNAK_SAYFA'] == sheet_name].copy()
                     
-                    error_rows = final_df[final_df['IS_ERROR'] == True].copy()
-                    error_count = len(error_rows)
+                    # Tmaxx Formatı: Container No ; Container Type
+                    tmaxx_export = sheet_df[["CNTR NO", "VOL"]].copy()
                     
-                    if not error_rows.empty:
-                        def get_error_reason(row):
-                            reasons = []
-                            if row['IS_INVALID_LENGTH']: reasons.append("KONTEYNER NO EKSİK VEYA FAZLA")
-                            if row['IS_CNTR_DUPLICATE']: reasons.append("TEKRAR EDEN KONTEYNER")
-                            if row['IS_MBL_DUPLICATE']: reasons.append("GİRDİDE TEKRAR EDEN MBL")
-                            return " + ".join(reasons)
-                        
-                        error_rows['HATA_NEDENI'] = error_rows.apply(get_error_reason, axis=1)
-                        final_skipped_df = pd.concat([final_skipped_df, error_rows], ignore_index=True).fillna('')
+                    if not tmaxx_export.empty:
+                        # header=False: Başlık satırını siler
+                        # sep=';': Ayracı noktalı virgül yapar
+                        csv_buffer = io.StringIO()
+                        tmaxx_export.to_csv(csv_buffer, index=False, header=False, sep=';', encoding='utf-8')
+                        tmaxx_files_dict[f"{sheet_name}.csv"] = csv_buffer.getvalue().encode('utf-8')
 
-                    final_count = len(final_df)
+                # Excel Çıktısı (Tam Liste için)
+                excel_buffer = io.BytesIO()
+                with pd.ExcelWriter(excel_buffer, engine='xlsxwriter') as writer:
+                    final_df.to_excel(writer, index=False, sheet_name='Sonuc')
+                excel_buffer.seek(0)
 
-                    # EXCEL ÇIKTISI
-                    output_excel = io.BytesIO()
-                    with pd.ExcelWriter(output_excel, engine='xlsxwriter') as writer:
-                        df_export = final_df.drop(columns=['INPUT_ROW_ID', 'IS_CNTR_DUPLICATE', 'IS_MBL_DUPLICATE', 'IS_INVALID_LENGTH', 'CLEAN_CNTR', 'IS_ERROR'])
-                        df_export.to_excel(writer, index=False, sheet_name='Sheet1')
-                        workbook = writer.book
-                        worksheet = writer.sheets['Sheet1']
-                        format_red = workbook.add_format({'bg_color': '#FFC7CE', 'font_color': '#9C0006'})
-                        format_orange = workbook.add_format({'bg_color': '#FCE4D6', 'font_color': '#C65911'})
-                        for row_num in range(len(final_df)):
-                            if final_df['IS_INVALID_LENGTH'].iloc[row_num]:
-                                worksheet.set_row(row_num + 1, None, format_red)
-                            elif final_df['IS_CNTR_DUPLICATE'].iloc[row_num] or final_df['IS_MBL_DUPLICATE'].iloc[row_num]:
-                                worksheet.set_row(row_num + 1, None, format_orange)
-                    output_excel.seek(0)
-
-                    # SKIPPED EXCEL ÇIKTISI
-                    skipped_bytes = None
-                    if not final_skipped_df.empty:
-                        skipped_buffer = io.BytesIO()
-                        with pd.ExcelWriter(skipped_buffer, engine='xlsxwriter') as writer:
-                            df_skipped_export = final_skipped_df.drop(columns=['INPUT_ROW_ID', 'IS_CNTR_DUPLICATE', 'IS_MBL_DUPLICATE', 'IS_INVALID_LENGTH', 'CLEAN_CNTR', 'IS_ERROR'], errors='ignore')
-                            df_skipped_export.to_excel(writer, index=False, sheet_name='Hatalar')
-                            workbook = writer.book
-                            worksheet = writer.sheets['Hatalar']
-                            format_red = workbook.add_format({'bg_color': '#FFC7CE', 'font_color': '#9C0006'})
-                            format_orange = workbook.add_format({'bg_color': '#FCE4D6', 'font_color': '#C65911'})
-                            if 'HATA_NEDENI' in df_skipped_export.columns:
-                                for row_num, reason in enumerate(df_skipped_export['HATA_NEDENI']):
-                                    reason_str = str(reason)
-                                    if "EKSİK VEYA FAZLA" in reason_str:
-                                        worksheet.set_row(row_num + 1, None, format_red)
-                                    elif "TEKRAR" in reason_str:
-                                        worksheet.set_row(row_num + 1, None, format_orange)
-                        skipped_buffer.seek(0)
-                        skipped_bytes = skipped_buffer
-
-                    # TMAXX CSV ÇIKTISI (VİRGÜL AYRAÇLI)
-                    if "VOL" not in final_df.columns: final_df["VOL"] = ""
-                    tmaxx_files_dict = {}
-                    
-                    def get_tmaxx_err_suffix(row):
-                        errs = []
-                        if row.get('IS_CNTR_DUPLICATE', False): errs.append("CNTR TEKRAR")
-                        if row.get('IS_MBL_DUPLICATE', False): errs.append("MBL TEKRAR")
-                        if row.get('IS_INVALID_LENGTH', False): errs.append("UZUNLUK HATASI")
-                        return f" [HATA: {' + '.join(errs)}]" if errs else ""
-
-                    if 'KAYNAK_SAYFA' in final_df.columns:
-                        for sheet_name in final_df['KAYNAK_SAYFA'].unique():
-                            sheet_df = final_df[final_df['KAYNAK_SAYFA'] == sheet_name].copy()
-                            tmaxx_df = sheet_df[["CNTR NO", "VOL", "IS_CNTR_DUPLICATE", "IS_MBL_DUPLICATE", "IS_INVALID_LENGTH"]].copy()
-                            tmaxx_df['CNTR NO'] = tmaxx_df['CNTR NO'] + tmaxx_df.apply(get_tmaxx_err_suffix, axis=1)
-                            
-                            tmaxx_df = tmaxx_df[["CNTR NO", "VOL"]]
-                            tmaxx_df.columns = ['Container No', 'Container Type']
-                            tmaxx_df = tmaxx_df[tmaxx_df['Container No'] != '']
-                            
-                            if not tmaxx_df.empty:
-                                # GÜNCELLEME: Virgülle ayrılmış ve standart UTF-8 formatı
-                                output_csv = tmaxx_df.to_csv(index=False, sep=',', encoding='utf-8').encode('utf-8')
-                                safe_name = str(sheet_name).replace("/", "_").replace("\\", "_")
-                                tmaxx_files_dict[f"{safe_name}.csv"] = output_csv
-
-                    display_df = final_df.drop(columns=['INPUT_ROW_ID', 'IS_CNTR_DUPLICATE', 'IS_MBL_DUPLICATE', 'IS_INVALID_LENGTH', 'CLEAN_CNTR', 'IS_ERROR'])
-
-                    st.session_state['processed_data'] = display_df
-                    st.session_state['skipped_data'] = final_skipped_df
-                    st.session_state['excel_bytes'] = output_excel
-                    st.session_state['skipped_bytes'] = skipped_bytes
-                    st.session_state['tmaxx_files'] = tmaxx_files_dict
-                    st.session_state['report_stats'] = {
-                        'skipped': len(final_skipped_df),
-                        'duplicates_and_errors': error_count,
-                        'final': final_count
-                    }
-                    
-                    my_bar.empty()
-                    st.balloons()
-                    st.rerun()
-                else:
-                    st.error("❌ Dosyalar okunamadı veya veri bulunamadı.")
+                st.session_state['processed_data'] = final_df
+                st.session_state['excel_bytes'] = excel_buffer
+                st.session_state['tmaxx_files'] = tmaxx_files_dict
+                st.rerun()
 
 # ==========================================
-# 5. RAPORLAMA VE İNDİRME ALANI
+# 4. İNDİRME ALANI
 # ==========================================
-
 if st.session_state['processed_data'] is not None:
-    stats = st.session_state['report_stats']
-    final_df = st.session_state['processed_data']
-    suspicious_count = len(final_df[final_df['VOL'] == "⚠️ ŞÜPHELİ (KARIŞIK TİP)"]) if 'VOL' in final_df.columns else 0
+    st.success("Analiz tamamlandı!")
     
-    st.write("")
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Toplam Konteyner", stats['final'], "✅ İşlenen")
-    c2.metric("Mükerrer & Uzunluk Hatası", stats['duplicates_and_errors'], "🚨 Hata", delta_color="inverse" if stats['duplicates_and_errors'] > 0 else "normal")
-    c3.metric("Toplam Hatalı Veri", stats['skipped'], "⚠️ İncele" if stats['skipped'] > 0 else "Temiz", delta_color="inverse" if stats['skipped'] > 0 else "normal")
-    c4.metric("Tip Belirsiz Kayıt", suspicious_count, "Manuel Kontrol" if suspicious_count > 0 else "Temiz", delta_color="inverse" if suspicious_count > 0 else "normal")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.download_button("📥 Tam Listeyi İndir (Excel)", st.session_state['excel_bytes'], "BIRLESTIRILMIS_LISTE.xlsx")
     
-    st.markdown("---")
+    with col2:
+        st.markdown("##### 📤 Tmaxx Dosyaları (Başlıksız & Noktalı Virgüllü)")
+        for file_name, file_bytes in st.session_state['tmaxx_files'].items():
+            st.download_button(f"📥 {file_name}", file_bytes, file_name, mime="text/csv")
 
-    if stats['duplicates_and_errors'] > 0:
-        st.error(f"🚨 DİKKAT: İşlenen verilerde {stats['duplicates_and_errors']} adet mükerrer veya hatalı uzunlukta kayıt bulundu! Çıktılarda işaretlenmiştir.")
-
-    tab1, tab2, tab3 = st.tabs(["📊 Grafikler ve Bilgi", "📥 İndir", "👀 Liste"])
-
-    with tab1:
-        if not final_df.empty:
-            col_info, col_graph2 = st.columns([1.5, 2])
-            with col_info:
-                st.subheader("🎨 Excel Çıktıları Renk Kodları")
-                st.info("İndireceğiniz **Excel dosyalarındaki** satırlar, içerdiği hata tipine göre otomatik renklendirilir:")
-                st.markdown("""
-                <div><span class="color-box red-box"></span> <b>Kırmızı:</b> Konteyner No Eksik veya Fazla (11 Hane Değil)</div>
-                <div style="margin-top: 10px;"><span class="color-box orange-box"></span> <b>Turuncu:</b> Mükerrer (Tekrar Eden) Kayıt</div>
-                <br>
-                <small><em>* İpucu: Bir satırda hem mükerrer hem uzunluk hatası varsa, kırmızı renk (uzunluk hatası) öncelikli gösterilir.</em></small>
-                """, unsafe_allow_html=True)
-            with col_graph2:
-                st.subheader("Konteyner Tipleri")
-                plot_df = final_df.copy()
-                plot_df['VOL'] = plot_df['VOL'].replace('', 'Belirsiz')
-                fig_vol = px.bar(plot_df['VOL'].value_counts().reset_index(), x='VOL', y='count', title='Tip Dağılımı', labels={'count':'Adet', 'VOL':'Tip'})
-                st.plotly_chart(fig_vol, key="chart2", use_container_width=True)
-
-    with tab2:
-        st.subheader("Dosyaları Al")
-        col_d1, col_d2, col_d3 = st.columns(3)
-        with col_d1:
-            st.download_button(label="📥 1. Temiz Birleştirilmiş Liste (Excel)", data=st.session_state['excel_bytes'], file_name="BIRLESTIRILMIS_LISTE.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-        with col_d2:
-            st.markdown("##### 📤 2. Tmaxx Dosyaları (CSV - Virgüllü)")
-            if st.session_state['tmaxx_files']:
-                for file_name, file_bytes in st.session_state['tmaxx_files'].items():
-                    st.download_button(label=f"📥 {file_name}", data=file_bytes, file_name=file_name, mime="text/csv", key=f"dl_btn_{file_name}")
-        with col_d3:
-            if st.session_state['skipped_bytes']:
-                st.download_button(label="⚠️ 3. Hatalı Kayıtlar", data=st.session_state['skipped_bytes'], file_name="HATALI_KAYITLAR.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-            else:
-                st.success("Hata yok! Harika! 🎉")
-
-    with tab3:
-        st.dataframe(final_df, use_container_width=True)
-    
-    st.markdown("---")
-    if st.button("🔄 Yeni İşlem Başlat"):
-        for key in st.session_state.keys(): del st.session_state[key]
-        st.rerun()
+    st.dataframe(st.session_state['processed_data'], use_container_width=True)
