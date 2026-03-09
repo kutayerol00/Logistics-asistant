@@ -40,7 +40,9 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-
+# ==========================================
+# 2. YARDIMCI FONKSİYONLAR
+# ==========================================
 
 def make_columns_unique(columns):
     seen = {}
@@ -79,9 +81,7 @@ def find_and_set_header(raw_df):
 def extract_container_from_full_row(row):
     row_str = " ".join([str(val).upper() for val in row.values])
     row_str = row_str.replace('/', ' ').replace(',', ' ').replace('&', ' ').replace(';', ' ').replace('-', ' ').replace(':', ' ')
-    
     matches = re.findall(r'\b[A-Z]{4}\s*\d{5,8}\b', row_str)
-    
     valid_containers = []
     for m in matches:
         clean_m = m.replace(" ", "").replace("\t", "")
@@ -171,6 +171,9 @@ def process_smart_rows(df):
 
     return pd.DataFrame(new_rows), pd.DataFrame(skipped_rows)
 
+# ==========================================
+# 3. UI - SIDEBAR VE HEADER
+# ==========================================
 
 with st.sidebar:
     st.image("https://cdn-icons-png.flaticon.com/512/2821/2821854.png", width=100) 
@@ -183,12 +186,14 @@ with st.sidebar:
         - **Hata Listesi:** MBL/Konteyneri bulunamayanlar, mükerrer geçenler veya uzunluğu hatalı olan konteynerler.
     """)
     st.markdown("---")
-    st.caption("v3.1 - Hata Renklendirmeleri Eklendi")
-
-
+    st.caption("v3.2 - CSV Virgül Ayracı Güncellendi")
 
 st.title("🚢 Lojistik Operasyon Asistanı")
 st.markdown("Dağınık Excel dosyalarını birleştirir, **eksik, mükerrer ve hatalı konteyner kayıtlarını kontrol ederek temizler** ve yüklemeye hazırlar.")
+
+# ==========================================
+# 4. SESSION STATE VE DOSYA İŞLEME
+# ==========================================
 
 if 'processed_data' not in st.session_state:
     st.session_state['processed_data'] = None
@@ -237,16 +242,12 @@ if uploaded_files:
                     final_skipped_df = pd.concat(all_skipped_dfs, ignore_index=True).fillna('') if all_skipped_dfs else pd.DataFrame()
 
                     raw_count = len(final_df)
-
                     final_df['IS_CNTR_DUPLICATE'] = final_df.duplicated(subset=['CNTR NO'], keep=False)
-
                     mbl_row_counts = final_df.groupby('MB/L NO')['INPUT_ROW_ID'].nunique()
                     duplicate_mbls = mbl_row_counts[mbl_row_counts > 1].index
                     final_df['IS_MBL_DUPLICATE'] = final_df['MB/L NO'].isin(duplicate_mbls)
-
                     final_df['CLEAN_CNTR'] = final_df['CNTR NO'].astype(str).str.replace(r'\s+', '', regex=True)
                     final_df['IS_INVALID_LENGTH'] = final_df['CLEAN_CNTR'].str.len() != 11
-
                     final_df['IS_ERROR'] = final_df['IS_CNTR_DUPLICATE'] | final_df['IS_MBL_DUPLICATE'] | final_df['IS_INVALID_LENGTH']
                     
                     error_rows = final_df[final_df['IS_ERROR'] == True].copy()
@@ -265,17 +266,15 @@ if uploaded_files:
 
                     final_count = len(final_df)
 
-                    # EXCEL ÇIKTISI OLUŞTURMA (Renklendirme Mantığı ile)
+                    # EXCEL ÇIKTISI
                     output_excel = io.BytesIO()
                     with pd.ExcelWriter(output_excel, engine='xlsxwriter') as writer:
                         df_export = final_df.drop(columns=['INPUT_ROW_ID', 'IS_CNTR_DUPLICATE', 'IS_MBL_DUPLICATE', 'IS_INVALID_LENGTH', 'CLEAN_CNTR', 'IS_ERROR'])
                         df_export.to_excel(writer, index=False, sheet_name='Sheet1')
                         workbook = writer.book
                         worksheet = writer.sheets['Sheet1']
-                        
                         format_red = workbook.add_format({'bg_color': '#FFC7CE', 'font_color': '#9C0006'})
                         format_orange = workbook.add_format({'bg_color': '#FCE4D6', 'font_color': '#C65911'})
-                        
                         for row_num in range(len(final_df)):
                             if final_df['IS_INVALID_LENGTH'].iloc[row_num]:
                                 worksheet.set_row(row_num + 1, None, format_red)
@@ -283,7 +282,7 @@ if uploaded_files:
                                 worksheet.set_row(row_num + 1, None, format_orange)
                     output_excel.seek(0)
 
-                    # SKIPPED EXCEL ÇIKTISI (Renklendirme Mantığı ile)
+                    # SKIPPED EXCEL ÇIKTISI
                     skipped_bytes = None
                     if not final_skipped_df.empty:
                         skipped_buffer = io.BytesIO()
@@ -292,10 +291,8 @@ if uploaded_files:
                             df_skipped_export.to_excel(writer, index=False, sheet_name='Hatalar')
                             workbook = writer.book
                             worksheet = writer.sheets['Hatalar']
-                            
                             format_red = workbook.add_format({'bg_color': '#FFC7CE', 'font_color': '#9C0006'})
                             format_orange = workbook.add_format({'bg_color': '#FCE4D6', 'font_color': '#C65911'})
-                            
                             if 'HATA_NEDENI' in df_skipped_export.columns:
                                 for row_num, reason in enumerate(df_skipped_export['HATA_NEDENI']):
                                     reason_str = str(reason)
@@ -306,7 +303,7 @@ if uploaded_files:
                         skipped_buffer.seek(0)
                         skipped_bytes = skipped_buffer
 
-                    
+                    # TMAXX CSV ÇIKTISI (VİRGÜL AYRAÇLI)
                     if "VOL" not in final_df.columns: final_df["VOL"] = ""
                     tmaxx_files_dict = {}
                     
@@ -328,7 +325,8 @@ if uploaded_files:
                             tmaxx_df = tmaxx_df[tmaxx_df['Container No'] != '']
                             
                             if not tmaxx_df.empty:
-                                output_csv = tmaxx_df.to_csv(index=False, sep=';', encoding='utf-8-sig').encode('utf-8-sig')
+                                # GÜNCELLEME: Virgülle ayrılmış ve standart UTF-8 formatı
+                                output_csv = tmaxx_df.to_csv(index=False, sep=',', encoding='utf-8').encode('utf-8')
                                 safe_name = str(sheet_name).replace("/", "_").replace("\\", "_")
                                 tmaxx_files_dict[f"{safe_name}.csv"] = output_csv
 
@@ -351,7 +349,9 @@ if uploaded_files:
                 else:
                     st.error("❌ Dosyalar okunamadı veya veri bulunamadı.")
 
-
+# ==========================================
+# 5. RAPORLAMA VE İNDİRME ALANI
+# ==========================================
 
 if st.session_state['processed_data'] is not None:
     stats = st.session_state['report_stats']
@@ -377,9 +377,7 @@ if st.session_state['processed_data'] is not None:
             col_info, col_graph2 = st.columns([1.5, 2])
             with col_info:
                 st.subheader("🎨 Excel Çıktıları Renk Kodları")
-                st.info("""
-                İndireceğiniz **Excel dosyalarındaki** satırlar, içerdiği hata tipine göre otomatik renklendirilir:
-                """)
+                st.info("İndireceğiniz **Excel dosyalarındaki** satırlar, içerdiği hata tipine göre otomatik renklendirilir:")
                 st.markdown("""
                 <div><span class="color-box red-box"></span> <b>Kırmızı:</b> Konteyner No Eksik veya Fazla (11 Hane Değil)</div>
                 <div style="margin-top: 10px;"><span class="color-box orange-box"></span> <b>Turuncu:</b> Mükerrer (Tekrar Eden) Kayıt</div>
@@ -399,7 +397,7 @@ if st.session_state['processed_data'] is not None:
         with col_d1:
             st.download_button(label="📥 1. Temiz Birleştirilmiş Liste (Excel)", data=st.session_state['excel_bytes'], file_name="BIRLESTIRILMIS_LISTE.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
         with col_d2:
-            st.markdown("##### 📤 2. Tmaxx Dosyaları (CSV)")
+            st.markdown("##### 📤 2. Tmaxx Dosyaları (CSV - Virgüllü)")
             if st.session_state['tmaxx_files']:
                 for file_name, file_bytes in st.session_state['tmaxx_files'].items():
                     st.download_button(label=f"📥 {file_name}", data=file_bytes, file_name=file_name, mime="text/csv", key=f"dl_btn_{file_name}")
